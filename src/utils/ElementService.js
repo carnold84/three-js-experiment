@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import Cube from "../elements/Cube";
+import Line from "../elements/Line";
 import Sphere from "../elements/Sphere";
 
 class ElementService {
@@ -11,6 +12,7 @@ class ElementService {
 
   static TYPES = {
     CUBE: "cube",
+    LINE: "line",
     SPHERE: "sphere",
   };
 
@@ -43,7 +45,7 @@ class ElementService {
     return this.createElement({ type: ElementService.TYPES.SPHERE, x, y });
   };
 
-  createElement = ({ type, x, y }) => {
+  createElement = ({ endPoint, startPoint, type, x, y }) => {
     let element;
 
     const position = this.getPosition({ x, y });
@@ -66,14 +68,23 @@ class ElementService {
           color: 0xffffff,
           heightSegments: 24,
           position,
-          radius: 10,
+          radius: 5,
           widthSegments: 24,
+        });
+
+        break;
+
+      case ElementService.TYPES.LINE:
+        element = new Line({
+          color: 0xffffff,
+          endPoint,
+          startPoint,
         });
 
         break;
     }
 
-    return element.getEl();
+    return element;
   };
 
   createSphereRing = ({ radius, x, y }) => {

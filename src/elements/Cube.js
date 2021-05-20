@@ -18,6 +18,14 @@ class Cube extends Element3D {
     // set position
     this.el.position.set(this.position.x, this.position.y, this.position.z);
   }
+
+  getPosition = () => {
+    return this.el.position;
+  };
+
+  setPosition = ({ x, y, z }) => {
+    this.el.position.set(x, y, z);
+  };
 }
 
 export default Cube;
