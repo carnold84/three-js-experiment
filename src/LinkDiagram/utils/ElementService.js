@@ -45,10 +45,19 @@ class ElementService {
     return this.createElement({ type: ElementService.TYPES.SPHERE, x, y });
   };
 
-  createElement = ({ endPoint, startPoint, type, x, y }) => {
+  createElement = ({
+    color,
+    endPoint,
+    radius,
+    startPoint,
+    type,
+    x,
+    y,
+    z = 10,
+  }) => {
     let element;
 
-    const position = this.getPosition({ x, y });
+    const position = this.getPosition({ x, y, z });
 
     // create element depending on element type
     switch (type) {
@@ -57,7 +66,7 @@ class ElementService {
           width: 10,
           height: 10,
           depth: 50,
-          colour: 0xffffff,
+          color,
           position,
         });
 
@@ -65,10 +74,10 @@ class ElementService {
 
       case ElementService.TYPES.SPHERE:
         element = new Sphere({
-          color: 0xffffff,
+          color,
           heightSegments: 24,
           position,
-          radius: 5,
+          radius,
           widthSegments: 24,
         });
 
@@ -76,7 +85,7 @@ class ElementService {
 
       case ElementService.TYPES.LINE:
         element = new Line({
-          color: 0xffffff,
+          color,
           endPoint,
           startPoint,
         });

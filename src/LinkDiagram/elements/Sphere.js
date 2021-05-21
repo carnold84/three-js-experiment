@@ -17,10 +17,12 @@ class Sphere extends Element3D {
       widthSegments,
       heightSegments
     );
-    this.material = new THREE.MeshPhongMaterial({ color });
+    this.material = new THREE.MeshBasicMaterial({ color });
 
     // create the cube
-    this.el = new THREE.Mesh(this.geometry, this.material);
+    this.el = new THREE.Group();
+    this.mesh = new THREE.Mesh(this.geometry, this.material);
+    this.el.add(this.mesh);
 
     // store position
     this.position = position;
