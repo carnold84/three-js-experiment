@@ -1,14 +1,43 @@
 <template>
-  <Stage />
+  <link-diagram :sizeNodesBy="sizeNodesBy" />
+  <controls
+    @sizeNodesBy="onSizeNodesBy"
+    :sizeNodesBy="sizeNodesBy"
+    :sizeNodesByOptions="sizeNodesByOptions"
+  />
 </template>
 
 <script>
-import Stage from "./components/Stage.vue";
+import Controls from "./components/Controls.vue";
+import LinkDiagram from "./components/LinkDiagram.vue";
+
+const sizeNodesByOptions = [
+  {
+    label: "Count 1",
+    value: "count1",
+  },
+  {
+    label: "Count 2",
+    value: "count2",
+  },
+];
 
 export default {
   name: "App",
   components: {
-    Stage,
+    Controls,
+    LinkDiagram,
+  },
+  data() {
+    return {
+      sizeNodesByOptions,
+      sizeNodesBy: sizeNodesByOptions[0].value,
+    };
+  },
+  methods: {
+    onSizeNodesBy(value) {
+      console.log(value);
+    },
   },
 };
 </script>

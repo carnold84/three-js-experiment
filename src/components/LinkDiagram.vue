@@ -1,5 +1,5 @@
 <template>
-  <div class="fullscreen stage">
+  <div class="fullscreen link-diagram">
     <div class="fullscreen loading" v-show="loading">Initialising...</div>
     <div
       @mousedown="onDocumentMouseDown"
@@ -15,33 +15,38 @@
 import LinkDiagram from "../LinkDiagram";
 
 export default {
-  name: "Stage",
+  name: "LinkDiagram",
   data() {
     return {
       loading: true,
     };
   },
   methods: {
-    init() {
+    async init() {
       const links = [];
       const nodes = [];
-      const colors = ["#d56868", "#86bc6b", "#81a8b1", "#d2d52e"];
+      const colors = ["#609DC9", "#AA60C9", "#C96060", "#B7AE5C"];
 
       for (let i = 0; i < 100; i++) {
         nodes.push({
-          color: colors[Math.floor(Math.random() * 3)],
-          count: Math.round(Math.random() * 1000),
+          color: colors[Math.floor(Math.random() * 4)],
+          count1: Math.round(Math.random() * 1000),
+          count2: Math.round(Math.random() * 1000),
           id: i,
           name: `Node ${i + 1}`,
         });
       }
       for (let i = 0; i < 90; i++) {
         links.push({
+          count1: Math.round(Math.random() * 300),
+          count2: Math.round(Math.random() * 300),
           id: i,
           source: nodes[Math.floor(Math.random() * 100)],
           target: nodes[Math.floor(Math.random() * 100)],
         });
       }
+
+      this.loading = false;
 
       this.linkDiagram = new LinkDiagram({
         links,
@@ -51,14 +56,13 @@ export default {
     },
   },
   mounted() {
-    this.loading = false;
     this.init();
   },
 };
 </script>
 
 <style scoped>
-.stage {
+.link-diagram {
   background-color: #222222;
 }
 

@@ -1,12 +1,22 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import * as d3 from "d3";
-
-import ElementService from "./utils/ElementService";
+import { createLink, createNode } from "./utils/elements";
 
 class LinkDiagram {
-  constructor({ links, nodes, targetEl }) {
+  static CAMERA_TYPES = {
+    ORTHOGRAPHIC: "orthographic",
+    PERSPECTIVE: "perspective",
+  };
+  constructor({
+    cameraType = LinkDiagram.CAMERA_TYPES.ORTHOGRAPHIC,
+    links,
+    nodes,
+    targetEl,
+  }) {
+    this.cameraType = cameraType;
     this.el = targetEl;
+    this.frustumSize = 1000;
     this.links = links;
     this.nodes = nodes;
 
@@ -16,24 +26,37 @@ class LinkDiagram {
 
     // add nodes and links
     this.nodes.forEach((node) => {
-      const element = this.elementService.createElement({
+      if (this.cameraType === LinkDiagram.CAMERA_TYPES.PERSPECTIVE) {
+        // perspective camera. Change z index
+        node.radius = 10;
+        node.z = -(50 * (node._data.bracketIdx * 0.8) + 100);
+      } else {
+        // orthographic camera. Change node radius
+        node.radius = node._data.bracketIdx * 0.8 + 2;
+        node.z = 0;
+      }
+
+      const element = createNode({
         color: node.color,
-        radius: 10,
-        type: ElementService.TYPES.SPHERE,
+        radius: node.radius,
         x: node.x,
         y: node.y,
-        z: 10 * (node._data.bracketIdx * 0.8),
+        z: node.z,
       });
       node.element = element;
 
       this.scene.add(element.getEl());
     });
 
+    console.log(this.links);
+
     this.links.forEach((link) => {
-      const element = this.elementService.createElement({
+      link.width = 5 * (link._data.bracketIdx * 0.8);
+
+      const element = createLink({
         endPoint: link.target.element.getPosition(),
         startPoint: link.source.element.getPosition(),
-        type: ElementService.TYPES.LINE,
+        width: link.width,
       });
       link.element = element;
 
@@ -58,23 +81,31 @@ class LinkDiagram {
 
     // create the scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color("#e9eae3");
+    this.scene.background = new THREE.Color("#222222");
 
     // add a camera
-    /* this.camera = new THREE.OrthographicCamera(
-      width / -4,
-      width / 4,
-      height / 4,
-      height / -4,
-      1,
-      1000
-    ); */
-    this.camera = new THREE.PerspectiveCamera(45, width / height, 1, 1000);
+    if (this.cameraType === LinkDiagram.CAMERA_TYPES.PERSPECTIVE) {
+      this.camera = new THREE.PerspectiveCamera(
+        45,
+        width / height,
+        1,
+        this.frustumSize
+      );
+    } else {
+      this.camera = new THREE.OrthographicCamera(
+        width / -4,
+        width / 4,
+        height / 4,
+        height / -4,
+        1,
+        this.frustumSize
+      );
+    }
 
     // set camera position
     this.camera.position.x = 0;
     this.camera.position.y = 0;
-    this.camera.position.z = 1000;
+    this.camera.position.z = 250;
 
     // add the camera
     this.scene.add(this.camera);
@@ -82,18 +113,36 @@ class LinkDiagram {
     const light = new THREE.DirectionalLight(0xffffff, 1);
     light.position.set(0, 0, 1000);
 
-    this.elementService = new ElementService({
-      camera: this.camera,
-      height,
-      width,
-    });
-
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableRotate = false;
     this.controls.enablePan = true;
+
+    if (this.cameraType === LinkDiagram.CAMERA_TYPES.PERSPECTIVE) {
+      this.controls.maxDistance = 250;
+      this.controls.minDistance = 10;
+    } else {
+      this.controls.maxZoom = 8;
+      this.controls.minZoom = 1;
+    }
+
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.05;
+    this.controls.panSpeed = 1;
     this.controls.mouseButtons = {
       LEFT: THREE.MOUSE.PAN,
     };
+
+    /* this.controls = new MapControls(this.camera, this.renderer.domElement);
+
+    this.controls.panSpeed = 10;
+    this.controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+    this.controls.dampingFactor = 0.05;
+
+    this.controls.screenSpacePanning = false;
+
+    this.controls.minDistance = 100;
+    this.controls.maxDistance = 500; */
+
     this.controls.update();
 
     // add the light
@@ -109,7 +158,8 @@ class LinkDiagram {
         d3.forceLink().id((d) => d.id)
       )
       .force("x", d3.forceX())
-      .force("y", d3.forceY());
+      .force("y", d3.forceY())
+      .on("tick", this.update);
 
     simulation.nodes(this.nodes);
     simulation.force("link").links(this.links);
@@ -122,8 +172,8 @@ class LinkDiagram {
   };
 
   update = () => {
-    this.nodes.forEach(({ element, x, y }) => {
-      element.setPosition({ x, y, z: 0 });
+    this.nodes.forEach(({ element, x, y, z }) => {
+      element.setPosition({ x, y, z });
     });
 
     this.links.forEach(({ element, source, target }) => {
@@ -133,11 +183,23 @@ class LinkDiagram {
     });
   };
 
+  render = () => {
+    // start animation/render loop
+    requestAnimationFrame(this.render);
+
+    //this.update();
+
+    this.controls.update();
+
+    // render the scene
+    this.renderer.render(this.scene, this.camera);
+  };
+
   processData = () => {
     let numBrackets = 10;
     let maxValue = 1000;
     let minValue;
-    const key = "count";
+    const key = "count1";
 
     this.nodes.forEach((node) => {
       const value = node[key];
@@ -164,18 +226,16 @@ class LinkDiagram {
         bracketIdx,
       };
     });
-  };
 
-  render = () => {
-    // start animation/render loop
-    requestAnimationFrame(this.render);
+    this.links.forEach((link) => {
+      const value = link[key];
 
-    this.controls.update();
+      const bracketIdx = Math.ceil((value / 1000) * numBrackets);
 
-    this.update();
-
-    // render the scene
-    this.renderer.render(this.scene, this.camera);
+      link._data = {
+        bracketIdx,
+      };
+    });
   };
 
   onMouseWheel = (evt) => {
@@ -189,10 +249,23 @@ class LinkDiagram {
   };
 
   onWindowResize = () => {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
-    this.camera.updateProjectionMatrix();
+    if (this.cameraType === LinkDiagram.CAMERA_TYPES.PERSPECTIVE) {
+      this.camera.aspect = window.innerWidth / window.innerHeight;
+      this.camera.updateProjectionMatrix();
 
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+    } else {
+      const aspect = window.innerWidth / window.innerHeight;
+
+      this.camera.left = (-this.frustumSize * aspect) / 2;
+      this.camera.right = (this.frustumSize * aspect) / 2;
+      this.camera.top = this.frustumSize / 2;
+      this.camera.bottom = -this.frustumSize / 2;
+
+      this.camera.updateProjectionMatrix();
+
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
   };
 }
 
