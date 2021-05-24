@@ -37,6 +37,7 @@ export default {
   methods: {
     onSizeNodesBy(value) {
       console.log(value);
+      this.sizeNodesBy = value;
     },
   },
 };

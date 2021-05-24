@@ -1,13 +1,7 @@
 <template>
   <div class="fullscreen link-diagram">
     <div class="fullscreen loading" v-show="loading">Initialising...</div>
-    <div
-      @mousedown="onDocumentMouseDown"
-      @mousewheel="onMouseWheel"
-      class="content fullscreen"
-      ref="content"
-      v-show="!loading"
-    ></div>
+    <div class="content fullscreen" ref="content" v-show="!loading"></div>
   </div>
 </template>
 
@@ -20,6 +14,16 @@ export default {
     return {
       loading: true,
     };
+  },
+  props: {
+    sizeNodesBy: {
+      type: String,
+    },
+  },
+  watch: {
+    sizeNodesBy(val) {
+      this.linkDiagram.updateNodeSizing(val);
+    },
   },
   methods: {
     async init() {
@@ -51,6 +55,7 @@ export default {
       this.linkDiagram = new LinkDiagram({
         links,
         nodes,
+        sizeNodesBy: this.sizeNodesBy,
         targetEl: this.$refs.content,
       });
     },

@@ -3,15 +3,77 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import * as d3 from "d3";
 import { createLink, createNode } from "./utils/elements";
 
+const layoutNodes = ({ links, nodes, onTick }) => {
+  const simulation = d3
+    .forceSimulation()
+    .force("charge", d3.forceManyBody())
+    .force(
+      "link",
+      d3.forceLink().id((d) => d.id)
+    )
+    .force("x", d3.forceX())
+    .force("y", d3.forceY())
+    .on("tick", onTick);
+
+  simulation.nodes(nodes);
+  simulation.force("link").links(links);
+  simulation
+    .alpha(1)
+    .restart()
+    .tick();
+};
+
+/* const updateNodeSizes = ({ nodes, sizeNodesBy, useZIndex = false }) => {
+  let numBrackets = 10;
+  let maxValue = 1000;
+  let minValue;
+
+  nodes.forEach((node) => {
+    const value = node[sizeNodesBy];
+
+    if (minValue === undefined) {
+      minValue = value;
+    } else if (value < minValue) {
+      minValue = value;
+    }
+
+    if (maxValue === undefined) {
+      maxValue = value;
+    } else if (value > maxValue) {
+      maxValue = value;
+    }
+  });
+
+  nodes.forEach((node) => {
+    let radius = 10;
+    const value = node[sizeNodesBy];
+    let z;
+
+    if (value) {
+      const bracketIdx = Math.ceil((value / 1000) * numBrackets);
+
+      if (useZIndex) {
+        radius = 10;
+        z = -(50 * (bracketIdx * 0.8) + 100);
+      } else {
+        radius = bracketIdx * 0.8 + 2;
+        z = 0;
+      }
+    }
+  });
+}; */
+
 class LinkDiagram {
   static CAMERA_TYPES = {
     ORTHOGRAPHIC: "orthographic",
     PERSPECTIVE: "perspective",
   };
+
   constructor({
     cameraType = LinkDiagram.CAMERA_TYPES.ORTHOGRAPHIC,
     links,
     nodes,
+    sizeNodesBy,
     targetEl,
   }) {
     this.cameraType = cameraType;
@@ -19,6 +81,7 @@ class LinkDiagram {
     this.frustumSize = 1000;
     this.links = links;
     this.nodes = nodes;
+    this.sizeNodesBy = sizeNodesBy;
 
     this.init();
 
@@ -26,37 +89,26 @@ class LinkDiagram {
 
     // add nodes and links
     this.nodes.forEach((node) => {
-      if (this.cameraType === LinkDiagram.CAMERA_TYPES.PERSPECTIVE) {
-        // perspective camera. Change z index
-        node.radius = 10;
-        node.z = -(50 * (node._data.bracketIdx * 0.8) + 100);
-      } else {
-        // orthographic camera. Change node radius
-        node.radius = node._data.bracketIdx * 0.8 + 2;
-        node.z = 0;
-      }
-
       const element = createNode({
         color: node.color,
-        radius: node.radius,
+        radius: 10,
         x: node.x,
         y: node.y,
         z: node.z,
       });
+      element.setScale(node.scale);
       node.element = element;
 
       this.scene.add(element.getEl());
     });
 
-    console.log(this.links);
-
     this.links.forEach((link) => {
-      link.width = 5 * (link._data.bracketIdx * 0.8);
+      //link.width = 5 * (link._data.bracketIdx * 0.8);
 
       const element = createLink({
         endPoint: link.target.element.getPosition(),
         startPoint: link.source.element.getPosition(),
-        width: link.width,
+        //width: link.width,
       });
       link.element = element;
 
@@ -150,7 +202,7 @@ class LinkDiagram {
   };
 
   start = () => {
-    const simulation = d3
+    /* const simulation = d3
       .forceSimulation()
       .force("charge", d3.forceManyBody())
       .force(
@@ -166,7 +218,9 @@ class LinkDiagram {
     simulation
       .alpha(1)
       .restart()
-      .tick();
+      .tick(); */
+
+    layoutNodes({ links: this.links, nodes: this.nodes, onTick: this.update });
 
     this.render();
   };
@@ -195,20 +249,22 @@ class LinkDiagram {
     this.renderer.render(this.scene, this.camera);
   };
 
+  updateNodeSizing = (value) => {
+    console.log("updateNodeSizing", value);
+    this.sizeNodesBy = value;
+    this.processData();
+
+    this.nodes.forEach(({ element, scale }) => {
+      element.setScale(scale);
+    });
+  };
+
   processData = () => {
     let numBrackets = 10;
     let maxValue = 1000;
-    let minValue;
-    const key = "count1";
 
     this.nodes.forEach((node) => {
-      const value = node[key];
-
-      if (minValue === undefined) {
-        minValue = value;
-      } else if (value < minValue) {
-        minValue = value;
-      }
+      const value = node[this.sizeNodesBy];
 
       if (maxValue === undefined) {
         maxValue = value;
@@ -218,23 +274,19 @@ class LinkDiagram {
     });
 
     this.nodes.forEach((node) => {
-      const value = node[key];
+      const value = node[this.sizeNodesBy];
 
-      const bracketIdx = Math.ceil((value / 1000) * numBrackets);
+      const bracketIdx = Math.ceil((value / maxValue) * numBrackets);
 
-      node._data = {
-        bracketIdx,
-      };
-    });
-
-    this.links.forEach((link) => {
-      const value = link[key];
-
-      const bracketIdx = Math.ceil((value / 1000) * numBrackets);
-
-      link._data = {
-        bracketIdx,
-      };
+      if (this.cameraType === LinkDiagram.CAMERA_TYPES.PERSPECTIVE) {
+        // perspective camera. Change z index
+        node.scale = 1;
+        node.z = -(50 * (bracketIdx * 0.8) + 100);
+      } else {
+        // orthographic camera. Change node radius
+        node.scale = 0.2 + bracketIdx * 0.08;
+        node.z = 0;
+      }
     });
   };
 
@@ -251,9 +303,6 @@ class LinkDiagram {
   onWindowResize = () => {
     if (this.cameraType === LinkDiagram.CAMERA_TYPES.PERSPECTIVE) {
       this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
-
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
     } else {
       const aspect = window.innerWidth / window.innerHeight;
 
@@ -261,11 +310,11 @@ class LinkDiagram {
       this.camera.right = (this.frustumSize * aspect) / 2;
       this.camera.top = this.frustumSize / 2;
       this.camera.bottom = -this.frustumSize / 2;
-
-      this.camera.updateProjectionMatrix();
-
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
+
+    this.camera.updateProjectionMatrix();
+
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
   };
 }
 

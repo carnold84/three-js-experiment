@@ -28,7 +28,8 @@ export default {
   },
   methods: {
     onChange(evt) {
-      this.$emit("select", evt.target.value);
+      evt.preventDefault();
+      this.$emit("select", evt);
     },
   },
 };

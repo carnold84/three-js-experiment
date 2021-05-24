@@ -38,6 +38,10 @@ class Sphere extends Element3D {
   setPosition = ({ x, y, z }) => {
     this.el.position.set(x, y, z);
   };
+
+  setScale = (scale) => {
+    this.geometry.scale(scale, scale, scale);
+  };
 }
 
 export default Sphere;
