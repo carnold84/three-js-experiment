@@ -28,6 +28,9 @@ class LinkDiagram {
     ORTHOGRAPHIC: 'orthographic',
     PERSPECTIVE: 'perspective',
   };
+  HOVER_COLOR = 0xebd61d;
+  SELECTED_COLOR = 0xffffff;
+  STAGE_BG_COLOR = 0x222222;
 
   constructor({
     cameraType = LinkDiagram.CAMERA_TYPES.ORTHOGRAPHIC,
@@ -39,8 +42,14 @@ class LinkDiagram {
     this.cameraType = cameraType;
     this.el = targetEl;
     this.frustumSize = 1000;
-    this.links = links;
-    this.nodes = nodes;
+    this.hoveredNode;
+    this.links = [];
+    this.linkLookup = {};
+    this.linksData = links;
+    this.nodes = [];
+    this.nodeLookup = {};
+    this.nodesData = nodes;
+    this.selectedNode;
     this.sizeNodesBy = sizeNodesBy;
     this.pointer = new THREE.Vector2();
 
@@ -49,31 +58,38 @@ class LinkDiagram {
     this.processData();
 
     // add nodes and links
-    this.nodes.forEach((node) => {
-      const element = createNode({
-        color: node.color,
+    this.nodesData.forEach((nodeData) => {
+      const node = createNode({
+        color: nodeData.color,
         radius: 10,
-        x: node.x,
-        y: node.y,
-        z: node.z,
+        x: nodeData.x || 0,
+        y: nodeData.y || 0,
+        z: nodeData.z || 0,
       });
-      element.setScale(node.scale);
-      node.element = element;
+      node.data = nodeData;
+      node.setScale(nodeData.scale);
 
-      this.scene.add(element.getEl());
+      // add to lookup and array
+      this.nodeLookup[nodeData.id] = node;
+      this.nodes.push(node);
+
+      this.scene.add(node);
     });
 
-    this.links.forEach((link) => {
-      //link.width = 5 * (link._data.bracketIdx * 0.8);
+    this.linksData.forEach((linkData) => {
+      //linkData.width = 5 * (linkData._data.bracketIdx * 0.8);
 
-      const element = createLink({
-        endPoint: link.target.element.getPosition(),
-        startPoint: link.source.element.getPosition(),
-        //width: link.width,
+      const link = createLink({
+        source: this.nodeLookup[linkData.source.id],
+        target: this.nodeLookup[linkData.target.id],
+        //width: linkData.width,
       });
-      link.element = element;
+      link.data = linkData;
 
-      this.scene.add(element.getEl());
+      this.linkLookup[linkData.id] = link;
+      this.links.push(link);
+
+      this.scene.add(link);
     });
 
     document.addEventListener('pointermove', this.onPointerMove);
@@ -98,7 +114,7 @@ class LinkDiagram {
 
     // create the scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#222222');
+    this.scene.background = new THREE.Color(this.STAGE_BG_COLOR);
 
     // add a camera
     if (this.cameraType === LinkDiagram.CAMERA_TYPES.PERSPECTIVE) {
@@ -157,20 +173,26 @@ class LinkDiagram {
   };
 
   start = () => {
-    layoutNodes({ links: this.links, nodes: this.nodes, onTick: this.update });
+    layoutNodes({
+      links: this.linksData,
+      nodes: this.nodesData,
+      onTick: this.update,
+    });
 
     this.render();
   };
 
   update = () => {
-    this.nodes.forEach(({ element, x, y, z }) => {
-      element.setPosition({ x, y, z });
+    this.nodesData.forEach(({ id, x, y, z }) => {
+      const node = this.nodeLookup[id];
+      node.setPosition({ x, y, z });
     });
 
-    this.links.forEach(({ element, source, target }) => {
-      const endPoint = target.element.getPosition();
-      const startPoint = source.element.getPosition();
-      element.setPoints({ endPoint, startPoint });
+    this.linksData.forEach(({ id }) => {
+      const link = this.linkLookup[id];
+      const endPoint = link.target.getPosition();
+      const startPoint = link.source.getPosition();
+      link.setPoints({ endPoint, startPoint });
     });
   };
 
@@ -191,19 +213,22 @@ class LinkDiagram {
     );
 
     if (intersects.length > 0) {
-      if (this.focusedNode != intersects[0].object) {
+      const focusedElement = intersects[0].object.parent;
+      if (
+        focusedElement.type === 'node' &&
+        this.focusedNode !== focusedElement
+      ) {
         if (this.focusedNode) {
-          this.focusedNode.material.color.set(this.focusedNode.currentColor);
+          this.focusedNode.setColor(this.focusedNode.currentColor);
         }
 
-        this.focusedNode = intersects[0].object;
-        this.focusedNode.currentColor = this.focusedNode.material.color.getHex();
-        this.focusedNode.material.color.set(0xebd61d);
+        this.focusedNode = focusedElement;
+        this.focusedNode.setColor(this.HOVER_COLOR);
         this.el.style.cursor = 'pointer';
       }
     } else {
       if (this.focusedNode) {
-        this.focusedNode.material.color.set(this.focusedNode.currentColor);
+        this.focusedNode.setColor(this.focusedNode.currentColor);
       }
 
       this.focusedNode = null;
@@ -230,8 +255,8 @@ class LinkDiagram {
     let numBrackets = 10;
     let maxValue = 1000;
 
-    this.nodes.forEach((node) => {
-      const value = node[this.sizeNodesBy];
+    this.nodesData.forEach((nodeData) => {
+      const value = nodeData[this.sizeNodesBy];
 
       if (maxValue === undefined) {
         maxValue = value;
@@ -240,19 +265,19 @@ class LinkDiagram {
       }
     });
 
-    this.nodes.forEach((node) => {
-      const value = node[this.sizeNodesBy];
+    this.nodesData.forEach((nodeData) => {
+      const value = nodeData[this.sizeNodesBy];
 
       const bracketIdx = Math.ceil((value / maxValue) * numBrackets);
 
       if (this.cameraType === LinkDiagram.CAMERA_TYPES.PERSPECTIVE) {
         // perspective camera. Change z index
-        node.scale = 1;
-        node.z = -(50 * (bracketIdx * 0.8) + 100);
+        nodeData.scale = 1;
+        nodeData.z = -(50 * (bracketIdx * 0.8) + 100);
       } else {
         // orthographic camera. Change node radius
-        node.scale = 0.2 + bracketIdx * 0.08;
-        node.z = 0;
+        nodeData.scale = 0.2 + bracketIdx * 0.08;
+        nodeData.z = 0;
       }
     });
   };
@@ -263,13 +288,20 @@ class LinkDiagram {
   };
 
   onPointerClick = () => {
+    const notSelected = this.focusedNode !== this.selectedNode;
+
     if (this.selectedNode) {
-      this.selectedNode.material.color.set(0xff00ff);
-    }
-    if (this.focusedNode) {
-      this.focusedNode.material.color.set(0xff00ff);
+      this.selectedNode.currentColor = this.selectedNode.color;
+      this.selectedNode.setColor(this.selectedNode.color);
+      this.selectedNode = null;
     }
     console.log(this.focusedNode);
+
+    if (this.focusedNode && notSelected) {
+      this.selectedNode = this.focusedNode;
+      this.selectedNode.currentColor = this.SELECTED_COLOR;
+      this.selectedNode.setColor(this.selectedNode.currentColor);
+    }
   };
 
   onWindowResize = () => {
