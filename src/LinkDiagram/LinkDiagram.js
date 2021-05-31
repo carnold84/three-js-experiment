@@ -1,72 +1,32 @@
-import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import * as d3 from "d3";
-import { createLink, createNode } from "./utils/elements";
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import * as d3 from 'd3';
+import { createLink, createNode } from './utils/elements';
 
 const layoutNodes = ({ links, nodes, onTick }) => {
   const simulation = d3
     .forceSimulation()
-    .force("charge", d3.forceManyBody())
+    .force('charge', d3.forceManyBody())
     .force(
-      "link",
+      'link',
       d3.forceLink().id((d) => d.id)
     )
-    .force("x", d3.forceX())
-    .force("y", d3.forceY())
-    .on("tick", onTick);
+    .force('x', d3.forceX())
+    .force('y', d3.forceY())
+    .on('tick', onTick);
 
   simulation.nodes(nodes);
-  simulation.force("link").links(links);
+  simulation.force('link').links(links);
   simulation
     .alpha(1)
     .restart()
     .tick();
 };
 
-/* const updateNodeSizes = ({ nodes, sizeNodesBy, useZIndex = false }) => {
-  let numBrackets = 10;
-  let maxValue = 1000;
-  let minValue;
-
-  nodes.forEach((node) => {
-    const value = node[sizeNodesBy];
-
-    if (minValue === undefined) {
-      minValue = value;
-    } else if (value < minValue) {
-      minValue = value;
-    }
-
-    if (maxValue === undefined) {
-      maxValue = value;
-    } else if (value > maxValue) {
-      maxValue = value;
-    }
-  });
-
-  nodes.forEach((node) => {
-    let radius = 10;
-    const value = node[sizeNodesBy];
-    let z;
-
-    if (value) {
-      const bracketIdx = Math.ceil((value / 1000) * numBrackets);
-
-      if (useZIndex) {
-        radius = 10;
-        z = -(50 * (bracketIdx * 0.8) + 100);
-      } else {
-        radius = bracketIdx * 0.8 + 2;
-        z = 0;
-      }
-    }
-  });
-}; */
-
 class LinkDiagram {
   static CAMERA_TYPES = {
-    ORTHOGRAPHIC: "orthographic",
-    PERSPECTIVE: "perspective",
+    ORTHOGRAPHIC: 'orthographic',
+    PERSPECTIVE: 'perspective',
   };
 
   constructor({
@@ -82,6 +42,7 @@ class LinkDiagram {
     this.links = links;
     this.nodes = nodes;
     this.sizeNodesBy = sizeNodesBy;
+    this.pointer = new THREE.Vector2();
 
     this.init();
 
@@ -115,7 +76,9 @@ class LinkDiagram {
       this.scene.add(element.getEl());
     });
 
-    window.addEventListener("resize", this.onWindowResize);
+    document.addEventListener('pointermove', this.onPointerMove);
+    document.addEventListener('click', this.onPointerClick);
+    window.addEventListener('resize', this.onWindowResize);
 
     this.start();
   }
@@ -123,6 +86,8 @@ class LinkDiagram {
   init = () => {
     const height = window.innerHeight;
     const width = window.innerWidth;
+
+    this.raycaster = new THREE.Raycaster();
 
     // create the renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -133,7 +98,7 @@ class LinkDiagram {
 
     // create the scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color("#222222");
+    this.scene.background = new THREE.Color('#222222');
 
     // add a camera
     if (this.cameraType === LinkDiagram.CAMERA_TYPES.PERSPECTIVE) {
@@ -144,13 +109,14 @@ class LinkDiagram {
         this.frustumSize
       );
     } else {
+      const aspect = window.innerWidth / window.innerHeight;
       this.camera = new THREE.OrthographicCamera(
-        width / -4,
-        width / 4,
-        height / 4,
-        height / -4,
+        (this.frustumSize * aspect) / -5,
+        (this.frustumSize * aspect) / 5,
+        this.frustumSize / 5,
+        this.frustumSize / -5,
         1,
-        this.frustumSize
+        1000
       );
     }
 
@@ -184,17 +150,6 @@ class LinkDiagram {
       LEFT: THREE.MOUSE.PAN,
     };
 
-    /* this.controls = new MapControls(this.camera, this.renderer.domElement);
-
-    this.controls.panSpeed = 10;
-    this.controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
-    this.controls.dampingFactor = 0.05;
-
-    this.controls.screenSpacePanning = false;
-
-    this.controls.minDistance = 100;
-    this.controls.maxDistance = 500; */
-
     this.controls.update();
 
     // add the light
@@ -202,24 +157,6 @@ class LinkDiagram {
   };
 
   start = () => {
-    /* const simulation = d3
-      .forceSimulation()
-      .force("charge", d3.forceManyBody())
-      .force(
-        "link",
-        d3.forceLink().id((d) => d.id)
-      )
-      .force("x", d3.forceX())
-      .force("y", d3.forceY())
-      .on("tick", this.update);
-
-    simulation.nodes(this.nodes);
-    simulation.force("link").links(this.links);
-    simulation
-      .alpha(1)
-      .restart()
-      .tick(); */
-
     layoutNodes({ links: this.links, nodes: this.nodes, onTick: this.update });
 
     this.render();
@@ -238,19 +175,49 @@ class LinkDiagram {
   };
 
   render = () => {
-    // start animation/render loop
-    requestAnimationFrame(this.render);
-
     //this.update();
 
     this.controls.update();
+
+    // find intersections
+
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+
+    // use true to intersect all children of children (recursive)
+    // i.e. the sphere as well as the group
+    const intersects = this.raycaster.intersectObjects(
+      this.scene.children,
+      true
+    );
+
+    if (intersects.length > 0) {
+      if (this.focusedNode != intersects[0].object) {
+        if (this.focusedNode) {
+          this.focusedNode.material.color.set(this.focusedNode.currentColor);
+        }
+
+        this.focusedNode = intersects[0].object;
+        this.focusedNode.currentColor = this.focusedNode.material.color.getHex();
+        this.focusedNode.material.color.set(0xebd61d);
+        this.el.style.cursor = 'pointer';
+      }
+    } else {
+      if (this.focusedNode) {
+        this.focusedNode.material.color.set(this.focusedNode.currentColor);
+      }
+
+      this.focusedNode = null;
+      this.el.style.cursor = 'auto';
+    }
+
+    // start animation/render loop
+    requestAnimationFrame(this.render);
 
     // render the scene
     this.renderer.render(this.scene, this.camera);
   };
 
   updateNodeSizing = (value) => {
-    console.log("updateNodeSizing", value);
     this.sizeNodesBy = value;
     this.processData();
 
@@ -290,14 +257,19 @@ class LinkDiagram {
     });
   };
 
-  onMouseWheel = (evt) => {
-    const mouseX = (evt.clientX / window.innerWidth) * 2 - 1;
-    const mouseY = -(evt.clientY / window.innerHeight) * 2 + 1;
-    const vector = new THREE.Vector3(mouseX, mouseY, 1);
-    vector.unproject(this.camera);
-    vector.sub(this.camera.position);
+  onPointerMove = (evt) => {
+    this.pointer.x = (evt.clientX / window.innerWidth) * 2 - 1;
+    this.pointer.y = -(evt.clientY / window.innerHeight) * 2 + 1;
+  };
 
-    this.controls.target = vector;
+  onPointerClick = () => {
+    if (this.selectedNode) {
+      this.selectedNode.material.color.set(0xff00ff);
+    }
+    if (this.focusedNode) {
+      this.focusedNode.material.color.set(0xff00ff);
+    }
+    console.log(this.focusedNode);
   };
 
   onWindowResize = () => {
@@ -306,10 +278,10 @@ class LinkDiagram {
     } else {
       const aspect = window.innerWidth / window.innerHeight;
 
-      this.camera.left = (-this.frustumSize * aspect) / 2;
-      this.camera.right = (this.frustumSize * aspect) / 2;
-      this.camera.top = this.frustumSize / 2;
-      this.camera.bottom = -this.frustumSize / 2;
+      this.camera.left = (-this.frustumSize * aspect) / 5;
+      this.camera.right = (this.frustumSize * aspect) / 5;
+      this.camera.top = this.frustumSize / 5;
+      this.camera.bottom = -this.frustumSize / 5;
     }
 
     this.camera.updateProjectionMatrix();

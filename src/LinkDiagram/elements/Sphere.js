@@ -1,5 +1,5 @@
-import * as THREE from "three";
-import Element3D from "./Element3D";
+import * as THREE from 'three';
+import Element3D from './Element3D';
 
 class Sphere extends Element3D {
   constructor({
@@ -41,6 +41,10 @@ class Sphere extends Element3D {
 
   setScale = (scale) => {
     this.geometry.scale(scale, scale, scale);
+  };
+
+  setOpacity = (opacity) => {
+    this.mesh.opacity = opacity;
   };
 }
 
