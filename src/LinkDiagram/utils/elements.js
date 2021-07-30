@@ -4,8 +4,6 @@ export const createNode = ({ color, radius, x, y, z }) => {
   const heightSegments = 24;
   const widthSegments = 24;
 
-  console.log(x, y, z);
-
   // create the geometry and material for the mesh
   const geometry = new THREE.SphereGeometry(
     radius,

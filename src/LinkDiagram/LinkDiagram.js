@@ -36,6 +36,7 @@ class LinkDiagram {
     cameraType = LinkDiagram.CAMERA_TYPES.ORTHOGRAPHIC,
     links,
     nodes,
+    onNodeSelect,
     sizeNodesBy,
     targetEl,
   }) {
@@ -46,6 +47,7 @@ class LinkDiagram {
     this.links = [];
     this.linkLookup = {};
     this.linksData = links;
+    this.onNodeSelect = onNodeSelect;
     this.nodes = [];
     this.nodeLookup = {};
     this.nodesData = nodes;
@@ -295,12 +297,15 @@ class LinkDiagram {
       this.selectedNode.setColor(this.selectedNode.color);
       this.selectedNode = null;
     }
-    console.log(this.focusedNode);
 
     if (this.focusedNode && notSelected) {
       this.selectedNode = this.focusedNode;
       this.selectedNode.currentColor = this.SELECTED_COLOR;
       this.selectedNode.setColor(this.selectedNode.currentColor);
+
+      this.onNodeSelect(this.selectedNode.data);
+    } else {
+      this.onNodeSelect(null);
     }
   };
 
