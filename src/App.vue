@@ -18,8 +18,8 @@
 </template>
 
 <script>
-  import Controls from './components/Controls.vue';
-  import LinkDiagram from './components/LinkDiagram.vue';
+  import { defineAsyncComponent } from 'vue';
+  import AppLoading from './components/AppLoading.vue';
 
   const sizeNodesByOptions = [
     {
@@ -35,8 +35,20 @@
   export default {
     name: 'App',
     components: {
-      Controls,
-      LinkDiagram,
+      Controls: defineAsyncComponent({
+        loader: () =>
+          import(
+            './components/Controls.vue' /* webpackChunkName: 'controls' */
+          ),
+        loadingComponent: AppLoading,
+      }),
+      LinkDiagram: defineAsyncComponent({
+        loader: () =>
+          import(
+            './components/LinkDiagram.vue' /* webpackChunkName: 'linkDiagram' */
+          ),
+        loadingComponent: AppLoading,
+      }),
     },
     data() {
       return {
@@ -93,6 +105,8 @@
   .controls-container {
     display: flex;
     justify-content: flex-end;
+    min-height: 30px;
+    min-width: 150px;
     position: absolute;
     right: 30px;
     top: 30px;
@@ -108,6 +122,7 @@
   }
 
   body {
+    background-color: #222222;
     font-family: 'Source Sans Pro', sans-serif;
     font-size: 14px;
     font-weight: 300;
